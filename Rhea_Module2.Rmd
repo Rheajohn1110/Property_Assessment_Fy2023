@@ -1,0 +1,340 @@
+---
+title: "Module 2"
+output:
+  html_document: default
+  word_document: default
+date: "2023-11-14"
+---
+
+#Loading required packages----
+```{r}
+library(base)
+
+library(tidyverse)
+```
+```{r}
+property_assessment<- read.csv("fy2023-property-assessment-data.csv")
+```
+Reading the required dataset.
+
+
+```{r}
+library(janitor)
+
+property_assessment<- clean_names(property_assessment)
+```
+Loading the janitor package to convert names from Upper case to Lower.
+
+
+#Creating customized dataset as per interest variables----
+```{r}
+
+updated_property_assessment<-  property_assessment[, c("city", "lu", "lu_desc", "bldg_type", "res_floor", "res_units", "com_units", "rc_units", "gross_area", "living_area", "land_value", "bldg_value", "total_value", "gross_tax", "yr_built", "bed_rms", "full_bth", "hlf_bth", "kitchens", "bdrm_cond", "heat_type", "ac_type", "num_parking", "prop_view")]
+
+str(updated_property_assessment)
+```
+
+
+#Converting interger values to numeric----
+```{r}
+int_columns <- sapply(updated_property_assessment, is.integer)
+
+updated_property_assessment[, int_columns] <- lapply(updated_property_assessment[, int_columns], as.numeric)
+
+str(updated_property_assessment)
+
+
+```
+
+#Managing outliers----
+```{r}
+clean_num_columns <- function(x) {
+  # Remove outliers based on IQR
+  q1 <- quantile(x, 0.25, na.rm = TRUE)
+  q3 <- quantile(x, 0.75, na.rm = TRUE)
+  iqr_value <- IQR(x, na.rm = TRUE)
+  
+  lower_bound <- q1 - 1.5 * iqr_value
+  upper_bound <- q3 + 1.5 * iqr_value
+  
+  x_outliers_removed <- ifelse(x < lower_bound | x > upper_bound, NA, x)
+  
+  # Impute missing values with the median
+  x_clean_data <- ifelse(is.na(x_outliers_removed), median(x, na.rm = TRUE), x_outliers_removed)
+  
+  return(x_clean_data)
+}
+
+#Clean all numeric columns in the dataset
+updated_property_assessment <- updated_property_assessment %>%
+  mutate(across(where(is.numeric), clean_num_columns))
+
+# Remove rows with any NA values after cleaning
+updated_property_assessment <- na.omit(updated_property_assessment)
+
+updated_property_assessment <- updated_property_assessment %>%
+  mutate(city = ifelse(city == "" | is.na(city), "Unknown", city))
+
+```
+
+#Calculating stats for the whole data----
+```{r}
+overall_data_stats<- data.frame(
+  updated_property_assessment %>% 
+    summarise(
+      Data_Frame= "Whole Data",
+      Mean_Building_Value = mean(bldg_value),
+      Mean_Land_Value = mean(land_value),
+      Mean_Gross_Tax = mean(gross_tax),
+      Mean_Bed_Rms = mean(bed_rms),
+      Mean_num_parking = mean(num_parking)
+    ))
+
+print(overall_data_stats)
+```
+In the above step, the mean of selected variables are being calculated considering the overall dataset.
+
+
+Next, samples are being created from the population data and the mean will then be compared for each samples with the population
+```{r}
+#Setting the seed for random reproducibility
+
+set.seed(100)
+sample_1<- sample_n(updated_property_assessment,10000)
+
+sample_1_summary<- data.frame(
+  sample_1%>%
+    summarise(
+          Data_Frame = "Sample 1",
+      Mean_Building_Value = mean(bldg_value),
+      Mean_Land_Value = mean(land_value),
+      Mean_Gross_Tax = mean(gross_tax),
+      Mean_Bed_Rms = mean(bed_rms),
+      Mean_num_parking = mean(num_parking)
+    ))
+
+print(sample_1_summary)
+
+
+```
+
+
+```{r}
+#Creating sample 2----
+
+set.seed(120)
+
+sample_2<- sample_n(updated_property_assessment,10000)
+
+sample_2_summary<- data.frame(
+  sample_2 %>% 
+    summarise(
+      Data_Frame = "Sample 2",
+      Mean_Building_Value = mean(bldg_value),
+      Mean_Land_Value = mean(land_value),
+      Mean_Gross_Tax = mean(gross_tax),
+      Mean_Bed_Rms = mean(bed_rms),
+      Mean_num_parking = mean(num_parking)
+    ))
+
+print(sample_2_summary)
+```
+
+
+```{r}
+
+#Creating sample 3----
+
+set.seed(130)
+
+sample_3<- sample_n(updated_property_assessment,10000)
+
+sample_3_summary<- data.frame(
+  sample_3 %>% 
+    summarise(
+      Data_Frame = "Sample 3",
+      Mean_Building_Value = mean(bldg_value),
+      Mean_Land_Value = mean(land_value),
+      Mean_Gross_Tax = mean(gross_tax),
+      Mean_Bed_Rms = mean(bed_rms),
+      Mean_num_parking = mean(num_parking)
+    ))
+
+print(sample_3_summary)
+
+```
+
+Combining all the values of
+```{r}
+comparison_stats_data<- rbind(
+  overall_data_stats,
+  sample_1_summary,
+  sample_2_summary,
+  sample_3_summary)
+
+print(comparison_stats_data)
+```
+
+Due to random sampling process, the mean of the samples are slightly different from the population mean for the variables. This is due to the fundamental prinipal of Central Limit Theorem. Though the mean of samples form a normal distribution and these are very close to the overall mean of the population dataset.
+
+
+
+Next, focusing on interested parameters from the population data
+```{r}
+lu_stats<- updated_property_assessment %>% 
+  group_by(lu) %>% 
+  summarise_if(is.numeric,list(
+    Mean= ~ mean(., na.rm=TRUE),
+    SD=~ sd(., na.rm=TRUE),
+    Min= ~min(., na.rm=TRUE),
+    Max= ~max(., na.rm=TRUE),
+    N= ~sum(!is.na(.))
+  ))
+
+print(lu_stats)
+```
+
+#GROUP by city----
+
+```{r}
+city_grouped_stats<- updated_property_assessment %>% 
+  group_by(city) %>% 
+  summarise_if(is.numeric,list(
+    Mean= ~ mean(., na.rm=TRUE),
+    SD=~ sd(., na.rm=TRUE),
+    Min= ~min(., na.rm=TRUE),
+    Max= ~max(., na.rm=TRUE),
+    N= ~sum(!is.na(.))
+  ))
+
+```
+
+#group by land value----
+
+```{r}
+
+Land_value_stats<- updated_property_assessment %>% 
+  group_by(land_value) %>% 
+  summarise_if(is.numeric,list(
+    Mean= ~ mean(., na.rm=TRUE),
+    SD=~ sd(., na.rm=TRUE),
+    Min= ~min(., na.rm=TRUE),
+    Max= ~max(., na.rm=TRUE),
+    N= ~sum(!is.na(.))
+  ))
+
+
+print(Land_value_stats)
+```
+
+
+#Using sampling method----
+```{r}
+
+#Considering total_value as the variable of interest----
+
+total_value_summary <- updated_property_assessment %>%
+  summarise(
+    Mean_Total_Value = mean(total_value, na.rm = TRUE),
+    SD_Total_Value = sd(total_value, na.rm = TRUE),
+    Min_Total_Value = min(total_value, na.rm = TRUE),
+    Max_Total_Value = max(total_value, na.rm = TRUE)
+  )
+
+
+print(total_value_summary)
+```
+
+
+```{r}
+#Using sampling for total value----
+
+set.seed(50)
+
+sample1_total_value <- sample_n(updated_property_assessment, 10000)
+
+total_value_sample_1 <- data.frame(
+  sample1_total_value %>% 
+    summarise(
+      Data_Frame = "Sample 1",
+      Mean_Total_value = mean(total_value),
+      SD_Total_value = sd(total_value),
+      max_total_value = max(total_value),
+      min_total_value = min(total_value)))
+
+print(total_value_sample_1)
+
+
+```
+
+#Sample 2----
+
+```{r}
+
+set.seed(42)
+
+sample2_total_value <- sample_n(updated_property_assessment, 10000)
+
+total_value_sample_2 <- data.frame(
+  sample2_total_value %>% 
+    summarise(
+      Data_Frame = "Sample 2",
+      Mean_Total_value = mean(total_value),
+      SD_Total_value = sd(total_value),
+      max_total_value = max(total_value),
+      min_total_value = min(total_value)))
+
+print(total_value_sample_2)
+
+```
+
+We can observe that the summary statistics value of samples is very much closr to the stats of the overall data.
+
+
+
+Part 2:
+
+#Creating jitter plot for properties built in last 5 years and their gross tax---
+
+```{r}
+
+filtered_data <- updated_property_assessment %>%
+  filter(yr_built >= (max(yr_built) - 5))
+
+ggplot(filtered_data, aes(x = as.factor(yr_built), y = gross_tax, color = yr_built)) +
+  geom_jitter() +
+  ggtitle("Jitter Plot for past 5 Year built properties and Gross Tax") +
+  xlab("Year Built") +
+  ylab("Gross Tax")
+
+```
+
+This jitter plot provides a more detailed view of the distribution of gross_tax for each year of construction within the last 5 years. It helps to identify patterns, concentrations, and potential outliers in the relationship between the construction year and gross tax, with jittering preventing overlap of points and improving visibility.
+
+
+```{r}
+
+#box plot for gross tax and year built last 5 years----
+
+ggplot(filtered_data, aes(x = as.factor(yr_built), y = gross_tax, color= yr_built)) +
+  geom_boxplot() +
+  ggtitle("Box Plot for Gross Tax on Properties Built in the Last 5 Years") +
+  xlab("Year Built") +
+  ylab("Gross Tax")
+```
+
+The above box plot explains the relationship between year built of properties and its gross tax. It visually summarizes the distribution of gross_tax for each level of yr_built. It includes a box that represents the interquartile range (IQR) of the data. The horizontal line inside the box represents the median. It provides insights into the central tendency, spread, and potential outliers in the gross_tax variable across different construction years.
+
+#Satterplot for continuous value of gross_tax and total_value----
+```{r}
+
+ggplot(updated_property_assessment, aes(x = gross_tax, y = total_value, color = gross_tax)) +
+  geom_point() +
+  ggtitle("Scatterplot between Gross Tax and Total Value") +
+  xlab("Gross Tax") +
+  ylab("Total Value")
+
+```
+
+The above scatterplot shows the relationship between total_value and gross tax. The scatterplot visually displays how the values of gross_tax and total_value vary together. Each point represents a property, and its position on the plot indicates its values for both variables. The above scatterplot shows a postive correlation between the values which indicates that with the total value of property, the gross tax also increases.
+

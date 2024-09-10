@@ -1,0 +1,171 @@
+---
+title: "Module 6"
+output: html_document
+date: "2023-12-15"
+---
+
+##Reading the dataset
+```{r}
+property_assessment<- read.csv("fy2023-property-assessment-data.csv")
+```
+
+
+##Loading required packages
+```{r}
+library(base)
+
+library(tidyverse)
+
+library(dplyr)
+```
+
+```{r}
+library(janitor)
+
+property_assessment<- clean_names(property_assessment)
+```
+
+##Creating customized vector for variables of interest
+```{r}
+updated_property_assessment<-  property_assessment[, c("city", "lu", "lu_desc", "bldg_type", "res_floor", "res_units", "com_units", "rc_units", "gross_area", "living_area", "land_value", "bldg_value", "total_value", "gross_tax", "yr_built", "bed_rms", "full_bth", "hlf_bth", "kitchens", "bdrm_cond", "heat_type", "ac_type", "num_parking", "prop_view")]
+```
+
+
+```{r}
+int_columns <- sapply(updated_property_assessment, is.integer)
+
+updated_property_assessment[, int_columns] <- lapply(updated_property_assessment[, int_columns], as.numeric)
+
+str(updated_property_assessment)
+```
+
+
+#Adjusting outliers
+```{r}
+clean_num_columns <- function(x) {
+  # Remove outliers based on IQR
+  q1 <- quantile(x, 0.25, na.rm = TRUE)
+  q3 <- quantile(x, 0.75, na.rm = TRUE)
+  iqr_value <- IQR(x, na.rm = TRUE)
+  
+  lower_bound <- q1 - 1.5 * iqr_value
+  upper_bound <- q3 + 1.5 * iqr_value
+  
+  x_outliers_removed <- ifelse(x < lower_bound | x > upper_bound, NA, x)
+  
+  # Impute missing values with the median
+  x_clean_data <- ifelse(is.na(x_outliers_removed), median(x, na.rm = TRUE), x_outliers_removed)
+  
+  return(x_clean_data)
+}
+
+#Clean all numeric columns in the dataset
+updated_property_assessment <- updated_property_assessment %>%
+  mutate(across(where(is.numeric), clean_num_columns))
+
+# Remove rows with any NA values after cleaning
+updated_property_assessment <- na.omit(updated_property_assessment)
+
+updated_property_assessment <- updated_property_assessment %>%
+  mutate(city = ifelse(city == "" | is.na(city), "Unknown", city))
+```
+
+
+
+```{r}
+
+library(ggplot2)
+
+property_extract <- subset(updated_property_assessment, select = c("total_value", "gross_area" ,"heat_type"))
+
+property_extract <- na.omit(property_extract)
+
+# Assuming 'your_data' is your data frame
+property_extract[property_extract == ""] <- NA
+
+# Omit rows with missing values
+property_extract <- na.omit(property_extract)
+
+
+# Create dummy variables for the categorical variable
+dummy_vars <- model.matrix(~ heat_type -1 , data = property_extract)
+
+# Combine the dummy variables with the original dataframe
+combined_vars1 <- cbind(property_extract["total_value"] , property_extract["gross_area"], dummy_vars)
+
+# Fit a regression model with the new dummy variables
+part_1 <- lm(total_value ~ ., data = combined_vars1) # total_value is the dependent variable so this means to include all independent variable
+
+options(scipen = 100, digits = 10)
+
+
+# Scatterplot with multiple regression lines
+ggplot(property_extract, aes(x = gross_area, y = total_value, color = property_extract$heat_type)) +
+geom_point(size = 0.25, alpha = 0.8) + # Increase point size and set transparency
+geom_smooth(method = "lm", se = FALSE, fullrange = TRUE, size = 0.25) + 
+labs(title = "Scatterplot with Regression Lines",
+x = "Gross Area", 
+y = "Total Value") +
+theme_minimal() +
+  scale_y_continuous(breaks = seq(0, 2000000, by = 200000), 
+limits = c(0, 2000000)) + # Adjusted y-axis limits
+scale_x_continuous(breaks = seq(0, 10000, by = 2000), 
+limits = c(0, 10000)) # Adjusted x-axis limits
+
+
+options(scipen = 100, digits = 10)
+```
+
+
+The points on the plot suggest a wide distribution of 'Total Value' across different 'Gross Area' sizes. This indicates variability in property value that is not solely dependent on the size of the property.
+
+Different colors represent different types of heating systems. The variety of colors indicates the diversity of heating options in the properties analyzed.
+
+**Regression Lines:** Each heating type category has its own regression line, indicating the trend of 'Total Value' as a function of 'Gross Area' for that particular type of heating system. The slopes of these lines suggest the rate at which value increases with area. Some heating types may show a steeper increase in property value with an increase in area, while others may show a more gradual trend.
+
+The closeness of the data points to the regression lines indicates the fit of the model.The clustering of points at certain 'Gross Area' intervals could indicate common property sizes or popular design choices in the housing market.
+
+In summary, this scatterplot with multiple regression lines can provide insights into how different heating systems might correlate with property values across varying property sizes.
+
+
+
+#Part 2----
+```{r}
+
+property_extract$heat_type <- as.factor(property_extract$heat_type)
+
+# Fit separate linear regression models for each subset based on 'heat_type'
+regression_results <- property_extract %>%
+  group_by(heat_type) %>%
+  do(model = list(lm(total_value ~ gross_area, data = .)))
+
+# Create separate scatterplots with regression lines for each subset based on 'heat_type'
+for (i in seq_along(regression_results$model)) {
+  level <- levels(property_extract$heat_type)[i]
+  plot_data <- subset(property_extract, heat_type == level)
+  
+  rr <- ggplot(data = plot_data, aes(x = gross_area, y = total_value)) +
+    geom_point(size= 0.5, color= "blue") +
+    geom_smooth(method = "lm", se = FALSE, color = "red") +
+    labs(title = paste("Scatterplot for", level, "Heat Type"),
+         x = "Gross Area",
+         y = "Total Value") +
+    theme_minimal()
+  
+  print(rr)}
+
+
+```
+**Graph 1:** The scatterplot presents the relationship between 'Gross Area' and 'Total Value' for properties with the Electric heat type ('E'). The data points, represented in blue, are spread out across the plot, suggesting variability in total property values relative to their size.There's a positive trend indicated by the red regression line, implying that, generally, as the gross area of these properties increases, so does their total value.
+
+**Graph 2:**  The scatterplot depicts the relationship between 'Gross Area' and 'Total Value' for properties equipped with Forced Hot Air heating systems ('F').A positive correlation is suggested by the red regression line, indicating that, in general, an increase in the gross area of a property is associated with an increase in its total value.
+
+**Graph 3:** The scatterplot appears to show the relationship between 'Gross Area' and 'Total Value' for properties that do not have a heating system, labeled as 'None' heat type.The red regression line indicates a positive correlation between 'Gross Area' and 'Total Value'. As the gross area increases, there is a trend of increasing property value.
+
+**Graph 4:** The red regression line indicates a positive relationship between 'Gross Area' and 'Total Value', where larger properties tend to have higher values.Compared to other categories, there seem to be fewer data points, suggesting that 'Other' heat types might be less common in the dataset.
+
+**Graph 5:** The scatterplot illustrates the relationship between 'Gross Area' and 'Total Value' for properties with Heat Pump heating systems ('P').The red regression line demonstrates a positive correlation where an increase in the gross area is associated with an increase in the total value of the properties.
+
+**Graph 6:** The scatterplot represents the relationship between 'Gross Area' and 'Total Value' for properties with the Space Heat heat type ('S').The red regression line indicates a positive correlation between the gross area of the properties and their total value. This suggests that as properties increase in size, their market value also tends to increase.
+
+**Graph 7:** The red regression line indicates a positive correlation between the gross area of the properties and their total value. This suggests that as properties increase in size, their market value also tends to increase.The consistent upward trend suggests that in the market segment with Hot Water/Steam heating, property size is an important factor in valuation, but due to the significant data spread, other variables must be considered to fully understand property values.

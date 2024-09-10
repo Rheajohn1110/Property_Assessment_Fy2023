@@ -1,0 +1,292 @@
+---
+title: "Week 1"
+output:
+  word_document: default
+  html_document: default
+date: "2023-11-06"
+---
+
+#Loading required packages----
+```{r}
+library(base)
+
+library(tidyverse)
+```
+
+
+#Loading the file----
+```{r}
+property_assessment<- read.csv("fy2023-property-assessment-data.csv")
+
+```
+In the above step, the data has been imported using read.csv.
+
+#Exploring and Cleaning the Data----
+```{r}
+str(property_assessment)
+
+head(property_assessment)
+
+```
+
+#Standardizing column names----
+```{r}
+library(tools)
+
+colnames(property_assessment)<- toTitleCase(colnames(property_assessment))
+
+
+```
+Using the above function, the column names are Standardized.
+
+
+#Creating filtered Dataset for further use----
+```{r}
+
+updated_property_assessment<- property_assessment[, c("ST_NUM", "ST_NAME", "BLDG_TYPE","CITY", "RES_FLOOR", "LIVING_AREA", "TOTAL_VALUE", "GROSS_TAX", "YR_BUILT", "BED_RMS", "FULL_BTH", "BDRM_COND", "KITCHEN_STYLE1", "HEAT_TYPE")]
+
+
+updated_property_assessment<- na.omit(updated_property_assessment)
+
+
+updated_property_assessment<- updated_property_assessment %>% 
+  arrange(desc(TOTAL_VALUE))
+
+```
+In the above steps, the updated variable has been created with the required variables. Further cleaned by removing the blank/NA value and arranged in descending order of their Total value in order to determine the expensive properties.
+
+
+#Top ten expensive properties----
+```{r}
+top10_expensive_prop<- head(updated_property_assessment, 10)
+
+library(scales)
+
+ggplot(top10_expensive_prop, aes(x= ST_NAME, y=TOTAL_VALUE ))+
+  geom_bar(stat="identity", fill="darkblue")+
+  labs(title="Top 10 Expensive Properties", x= "Street Name", y= "Total Value")+
+  scale_y_continuous(labels=comma)+
+  theme_classic()
+
+```
+As per the above chart, it can be observed that the most expensive property across the overall data is in Dalton St and followed by Commonwealth Ave. Although, this visualization does not consider other dependent factors like number of bedrooms, condition, year built.
+
+#Least expensive property----
+```{r}
+least_expensive_prop<- updated_property_assessment %>% 
+  arrange(TOTAL_VALUE) %>% 
+  head(10)
+
+ggplot(least_expensive_prop, aes(x= ST_NAME, y=TOTAL_VALUE ))+
+  geom_bar(stat="identity", fill="darkgreen")+
+  labs(title="Top 10 Cheap Properties in Boston", x= "Street Name", y= "Total Value")+
+  scale_y_continuous(labels=comma)+
+  theme_classic()
+
+```
+The above visualization shows us the least expensive properties irrespective of their bedroom numbers and overall condistions. 
+
+
+#Calculating average number of bedrooms and Full bath----
+```{r}
+avg_bedrms_bth<- updated_property_assessment %>% 
+  group_by(CITY) %>% 
+  summarize(Avg_Bedrms= mean(BED_RMS, na.rm= TRUE),
+            Avg_Bath= mean(FULL_BTH), na.rm= TRUE)
+```
+
+#Distribution of living area
+```{r}
+ggplot(updated_property_assessment, aes(x=LIVING_AREA))+
+  geom_histogram(binwidth=100, color="green")+
+  labs(title= "Distribution of Living Area ", x="Living Area", y= "Frequency")
+```
+The above Histogram shows the Distribution of Living area of the dataset. This is a negatively skewed chart with taller frequency on the left and extending towards the right. It does not have a wider spread.
+
+
+#Calculating correlation between Living area and Total value of property----
+```{r}
+correlation <- cor(updated_property_assessment$LIVING_AREA, updated_property_assessment$TOTAL_VALUE, use = "complete.obs")
+
+ggplot(updated_property_assessment, aes(x = LIVING_AREA, y = TOTAL_VALUE)) +
+  geom_point(color = "red", alpha = 0.5) +
+  labs(title = "Correlation of Living Area vs Total value", x = "Living Area", y = "Total Value")+
+  scale_y_continuous(labels=comma)+
+  scale_x_continuous(breaks=seq(0, 20000, by=4000), limits=c(0,20000))
+
+
+```
+
+The above indicates a positive correlation between the Living area of the property and the Total valuation. As the Living area increases, the valuation of the properties also increases.
+
+#Calculating average tax rates accross different cities----
+```{r}
+Avg_tax_rates<- updated_property_assessment %>% 
+  group_by(CITY) %>% 
+  summarize(Avg_tax_rate= mean(GROSS_TAX, na.rm=TRUE))
+
+
+ggplot(Avg_tax_rates, aes(x=CITY, y=Avg_tax_rate, fill= CITY))+
+  geom_bar(stat="identity")+
+  labs(title= "Average tax rates across cities", x="City", y= "Avg Tax Rate")+
+  theme(axis.text.x = element_text(angle = 30, hjust = 1), legend.position = "none")
+  
+
+```
+
+While analysing the above Bar chart, it is noticed that among all the Cities, the tax rate in Boston is the highest. This data does not consider the other dependent factors of tax rates.
+
+
+#Converting Bdrm_cond values to Numeric----
+```{r}
+updated_property_assessment<- updated_property_assessment %>% 
+  mutate(Bdrm_cond_num= case_when(
+    BDRM_COND== "A - Average"~ 1,
+    BDRM_COND == "F - Fair" ~ 2,
+      BDRM_COND == "G - Good" ~ 3,
+      BDRM_COND == "E - Excellent" ~ 4,
+    TRUE~NA))
+```
+
+#Visualizing the bedroom Conditions across Cities----
+```{r}
+ggplot(updated_property_assessment, aes(x = Bdrm_cond_num)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black") +
+  labs(
+    title = "Rating of Bedroom Condition",
+    x = "Bedroom Condition",
+    y = "Frequency"
+  ) +
+  scale_x_continuous(breaks = 1:4)
+```
+
+As per the above Histogram, it can be observed that majority of the Properties have Bedroom Conditions "1" which is defined for 'Average'. A very few have Good Condition and the least have Excellent Condition.
+
+
+#Filtering the data with 2 beds 1 Bath and finding its Avg value accross cities.
+```{r}
+filtered_data <- updated_property_assessment %>%
+  group_by(CITY) %>% 
+  filter(BED_RMS==2, FULL_BTH==1)
+
+
+average_total_value <- filtered_data %>%
+  group_by(CITY) %>%
+  summarize(Avg_Total_value = mean(TOTAL_VALUE, na.rm = TRUE))
+
+average_total_value<- average_total_value %>% 
+  arrange(desc(Avg_Total_value))
+
+```
+
+
+#Creating a Bar graph to compare Total value of 2Bed 1Bath properties accross Cities----
+```{r}
+ggplot(average_total_value, aes(x = CITY, y = Avg_Total_value, fill = CITY)) +
+  geom_bar(stat = "identity")+
+  labs(
+    title = "Average Total Property Value (2 Bedrooms, 1 Bathroom) by City",
+    x = "City",
+    y = "Average Total Value"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  scale_y_continuous(labels=comma)+
+  theme(legend.position = "top", legend.key.size = unit(0.3, "cm"))
+```
+
+It can be analysed that Boston has the highest prices for a 2Bed 1Bath Property, followed by Charlestown and Dedham.
+
+#Creating a histogram to analyze the distribution of data----
+```{r}
+
+ggplot(average_total_value, aes(x = Avg_Total_value, fill = CITY)) +
+  geom_histogram(binwidth = 50000, color = "black") +
+  labs(
+    title = "Comparison of Property Value of 2 Bedrooms, 1 Bathroom by City",
+    x = "Average Total Value",
+    y = "Frequency"
+  )  +
+  theme(legend.position = "bottom", legend.key.size = unit(0.3, "cm"))+
+  scale_x_continuous(labels = scales::comma)
+
+  
+```
+
+By looking at the above histogram, it is observed that the highest frequency falls under 400,000 and 500,000. This histogram is Positively skewed with majority values group at the left and extending gradually towards the right side with a wider distribution.
+
+#Finding oldest built property across cities----
+This data will help us analyze which property should be proposed for remodeling.
+
+```{r}
+updated_property_assessment<- updated_property_assessment %>% 
+  arrange(YR_BUILT)
+
+head(updated_property_assessment)
+```
+With the above summary, we can figure out the oldest property in the Dataset. It is observed that the oldest property was built in 1700 and is located in 21 Greenview Ave, Jamaica PLain.
+
+
+#now, analyzing data for Jamaica Plain----
+```{r}
+Jamaica_plain<- subset(property_assessment, CITY=="JAMAICA PLAIN")
+
+Jamaica_plain<- Jamaica_plain[, c("ST_NUM", "ST_NAME", "BLDG_TYPE","CITY", "RES_FLOOR", "LIVING_AREA", "TOTAL_VALUE", "GROSS_TAX", "YR_BUILT", "BED_RMS", "FULL_BTH", "BDRM_COND", "KITCHEN_STYLE1", "HEAT_TYPE")]
+
+Jamaica_plain1<- na.omit(Jamaica_plain)
+
+head(Jamaica_plain1)
+```
+
+
+#Create a summary table with the count of properties for each street
+```{r}
+
+street_counts <- Jamaica_plain1 %>%
+  group_by(ST_NAME) %>%
+  summarize(Count = n())
+
+street_counts<- street_counts %>% 
+  arrange(desc(Count)) %>% 
+  head(10)
+
+ggplot(street_counts, aes(x=ST_NAME, y=Count))+
+  geom_bar(stat="identity")+
+  labs(itle="Top 10 Streets with Highest Distribution of Properties in JP", x= "Street Name", y= "Number of Properties")+
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+As per the above visualization, it is noticed that most of the properties in Jamaica Plain is on the Centre St.
+
+
+#Arranging in descending order of their Total Value----
+```{r}
+Jamaica_plain1<- Jamaica_plain1 %>% 
+  arrange(desc(TOTAL_VALUE))
+
+head (Jamaica_plain1)
+```
+With the above result, we can see the top expensive properties in Jamaica Plain. The most expensive property is the one on 96 Rockwood St with a Living area of 8366.6 and has 8 bedrooms and 2 bath.
+
+
+#Different heating types in Jamaica Plain properties----
+```{r}
+heating_type<- Jamaica_plain%>% 
+  distinct(HEAT_TYPE)
+
+print(heating_type)
+```
+
+#Creating a table of heating types and their frequencies----
+```{r}
+heating_table<- table(Jamaica_plain$HEAT_TYPE)
+
+most_used_HT<- names(which.max(heating_table))
+
+print(most_used_HT)
+```
+
+The most used heating type in Jamaica Plain Properties in Water/Steam.
+
+
+In conclusion to the assignment, the property assessment across Boston, has provided valuable insights on the attributes, distributions and other characteristics.
+
+

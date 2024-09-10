@@ -1,0 +1,164 @@
+---
+title: "Module 3"
+output: html_document
+date: "2023-11-24"
+---
+
+
+#Loading required packages----
+```{r}
+library(base)
+
+library(tidyverse)
+
+library(dplyr)
+```
+
+```{r}
+property_assessment<- read.csv("fy2023-property-assessment-data.csv")
+```
+
+```{r}
+library(janitor)
+
+property_assessment<- clean_names(property_assessment)
+```
+
+```{r}
+updated_property_assessment<-  property_assessment[, c("city", "lu", "lu_desc", "bldg_type", "res_floor", "res_units", "com_units", "rc_units", "gross_area", "living_area", "land_value", "bldg_value", "total_value", "gross_tax", "yr_built", "bed_rms", "full_bth", "hlf_bth", "kitchens", "bdrm_cond", "heat_type", "ac_type", "num_parking", "prop_view")]
+
+
+```
+
+```{r}
+int_columns <- sapply(updated_property_assessment, is.integer)
+
+updated_property_assessment[, int_columns] <- lapply(updated_property_assessment[, int_columns], as.numeric)
+
+str(updated_property_assessment)
+
+```
+
+```{r}
+clean_num_columns <- function(x) {
+  # Remove outliers based on IQR
+  q1 <- quantile(x, 0.25, na.rm = TRUE)
+  q3 <- quantile(x, 0.75, na.rm = TRUE)
+  iqr_value <- IQR(x, na.rm = TRUE)
+  
+  lower_bound <- q1 - 1.5 * iqr_value
+  upper_bound <- q3 + 1.5 * iqr_value
+  
+  x_outliers_removed <- ifelse(x < lower_bound | x > upper_bound, NA, x)
+  
+  # Impute missing values with the median
+  x_clean_data <- ifelse(is.na(x_outliers_removed), median(x, na.rm = TRUE), x_outliers_removed)
+  
+  return(x_clean_data)
+}
+
+#Clean all numeric columns in the dataset
+updated_property_assessment <- updated_property_assessment %>%
+  mutate(across(where(is.numeric), clean_num_columns))
+
+# Remove rows with any NA values after cleaning
+updated_property_assessment <- na.omit(updated_property_assessment)
+
+updated_property_assessment <- updated_property_assessment %>%
+  mutate(city = ifelse(city == "" | is.na(city), "Unknown", city))
+
+```
+
+
+#Calculating t tests----
+
+#Considering variable Gross_tax----
+```{r}
+
+mean_gross_tax<- mean(updated_property_assessment$gross_tax)
+
+print(mean_gross_tax)
+```
+Null Hypothesis: Mean Gross Tax is equal to 6187.053
+Alternative Hypothesis: Mean Gross Tax is not equal to 6187.053
+
+```{r}
+
+gross_tax<- updated_property_assessment$gross_tax
+
+
+set.seed(123)
+
+sample_gross_tax<- sample(gross_tax, 200)
+
+mean_sample_gross_tax<- mean(sample_gross_tax)
+
+# One-sample t-test
+t_test_gross_tax <- t.test(sample_gross_tax, mu = mean_gross_tax)
+
+# Calculation of t(critical)
+confidence_level <- 0.95  
+degrees_of_freedom <- 199
+
+# Calculate the critical t-value
+t_critical <- qt((1 + confidence_level) / 2, df = degrees_of_freedom)
+
+# Print the result
+
+# Print the results
+cat("Null Hypothesis (H0): The mean of the sample is equal to the population mean.\n")
+cat("Alternative Hypothesis (H1): The mean of the sample is not equal to the population mean.\n\n")
+
+
+cat("T-test Results:\n")
+print(t_test_gross_tax)
+cat("t(critical) for 95% confidence interval and 99 degree of freedom = ",t_critical)
+
+
+```
+Since the value of t is less than the value of t critical, we do not have enough evidence to reject our Null Hypothesis.
+95 confidence interval is 5378.219 6516.200
+True population mean lies within 6187.053
+
+
+#Considering variable Building Value----
+```{r}
+
+mean_bldg_value<- mean(updated_property_assessment$bldg_value)
+print(mean_bldg_value)
+
+```
+
+```{r}
+bldg_value<- updated_property_assessment$bldg_value
+
+
+set.seed(100)
+
+sample_bldg_value<- sample(bldg_value, 200)
+
+mean_sample_bldg_value<- mean(sample_bldg_value)
+
+# One-sample t-test
+t_test_bldg_value <- t.test(sample_bldg_value, mu = mean_bldg_value)
+
+# Calculation of t(critical)
+confidence_level <- 0.95  
+degrees_of_freedom <- 199
+
+
+# Calculate the critical t-value
+t_critical_bv <- qt((1 + confidence_level) / 2, df = degrees_of_freedom)
+
+cat("Null Hypothesis (H0): The mean of the sample is equal to the population mean of bldg_value.\n")
+cat("Alternative Hypothesis (H1): The mean of the sample is not equal to the population mean of bldg_value.\n\n")
+
+
+cat("T-test Results:\n")
+print(t_test_bldg_value)
+
+cat("t(critical) for 95% confidence interval and 99 degree of freedom = ",t_critical)
+```
+Given the p-value of 0.4692 we do not have much evidence to reject the Null Hypothesis.The t-test suggests that the sample mean is not significantly different from the assumed population mean of bldg_value. The confidence interval also supports this conclusion, as it includes the assumed population mean.
+95 percent confidence interval is 447914.6 527171.6
+True population mean lies within 472968.9

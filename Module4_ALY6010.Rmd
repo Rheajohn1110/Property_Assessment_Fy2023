@@ -1,0 +1,117 @@
+---
+title: "Module 4"
+output: html_document
+date: "2023-12-05"
+---
+
+```{r}
+#install.packages("MASS")
+
+library(MASS)
+```
+
+#loading the cats dataset----
+
+```{r}
+data("cats")
+```
+
+#creating separate vectors for male and female as per bodyweight----
+```{r}
+
+male <- subset(cats, subset=(cats$Sex=="M"))
+
+female<- subset(cats, subset=(cats$Sex=="F"))
+```
+
+
+
+#Required question: do male and female cat samples have the same bodyweight (“Bwt”)?----
+
+Null hypothesis(H0) - No significance difference between body weight of Male and Female cats
+Alternative Hypothesis (H1) - Significant difference between bodyweght of Male and Female cats
+
+```{r}
+male <- na.omit(male)
+female <- na.omit(female)
+
+str(male)
+str(female)
+
+```
+
+```{r}
+male <- cats$Bwt[cats$Sex == "M"]
+female <- cats$Bwt[cats$Sex == "F"]
+```
+
+```{r}
+
+t_test_result <- t.test(male, female, var.equal = FALSE)
+
+print(t_test_result)
+
+```
+
+
+Noticing the small p-value (8.831e-15), we reject the null hypothesis that suggests the mean body weights of male and female cats are equal. Therefore, there is strong evidence to suggest that there is a significant difference in body weights between male and female cats. The positive difference in means (0.54) indicates that, on average, male cats have a higher body weight compared to female cats.
+
+The 95% confidence interval for the difference in means (0.4177242, 0.6631268) suggests that the true difference in mean body weights falls within this range. Since this interval does not include zero, it suggests a significant difference.
+
+In summary, based on the t-test results, there is convincing evidence to support the idea that male and female cats have different body weights, with male cats, on average, being heavier than female cats.
+
+
+
+
+#Part 2----
+
+#Hypothesis:
+
+Null Hypothesis (H0): There is no difference in average sleep quality scores before and after the meditation workshop.
+
+Alternative Hypothesis (H1): Meditation improves sleep quality, leading to a higher average score after the workshop
+```{r}
+
+before_workshop <- c(4.6, 7.8, 9.1, 5.6, 6.9, 8.5, 5.3, 7.1, 3.2, 4.4)
+
+after_workshop<- c(6.6, 7.7, 9.0, 6.2, 7.8, 8.3, 5.9, 6.5, 5.8, 4.9)
+
+```
+
+Since the sleep is measured for the same individuals before taking the workshop and after, paired t test can be used.
+
+#Alpha = 0.5----
+```{r}
+paired_t_test <- t.test(before_workshop, after_workshop, paired = TRUE, alternative = "greater")
+print(paired_t_test)
+```
+
+
+#Interpretation:
+
+t-value: The t-value is -1.9481.
+Degrees of Freedom (df): The degrees of freedom are 9.
+p-value: The p-value is 0.9584.
+
+
+The p-value (0.9584) is greater than 0.05, indicating that we do not have enough evidence to reject the null hypothesis. There is no statistically significant improvement in sleep quality after the meditation workshop based on the paired t-test at the 0.05 significance level. At α = 0.05, there is no significant improvement in sleep quality after the meditation workshop based on the above results.
+
+
+#Alpha= 0.01----
+```{r}
+
+# Perform a paired t-test with alpha = 0.1
+paired_t_test_0.1 <- t.test(before_workshop, after_workshop, paired = TRUE, alternative = "greater", alpha = 0.01)
+
+print(paired_t_test_0.1)
+```
+
+
+#Interpretation:
+
+t-value: The t-value is -1.9481.
+Degrees of Freedom (df): The degrees of freedom are 9.
+p-value: The p-value is 0.9584.
+
+
+The p-value (0.9584) is much larger than 0.01, suggesting that we do not have enough evidence to reject the null hypothesis. At the 0.01 significance level, there is no statistically significant improvement in sleep quality after the meditation workshop based on the paired t-test.

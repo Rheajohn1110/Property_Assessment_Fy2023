@@ -1,0 +1,269 @@
+---
+title: "Module 5"
+output: html_document
+date: "2023-12-10"
+---
+
+##Reading the dataset
+```{r}
+property_assessment<- read.csv("fy2023-property-assessment-data.csv")
+```
+
+
+##Loading required packages
+```{r}
+library(base)
+
+library(tidyverse)
+
+library(dplyr)
+```
+
+```{r}
+library(janitor)
+
+property_assessment<- clean_names(property_assessment)
+```
+
+##Creating customized vector for variables of interest
+```{r}
+updated_property_assessment<-  property_assessment[, c("city", "lu", "lu_desc", "bldg_type", "res_floor", "res_units", "com_units", "rc_units", "gross_area", "living_area", "land_value", "bldg_value", "total_value", "gross_tax", "yr_built", "bed_rms", "full_bth", "hlf_bth", "kitchens", "bdrm_cond", "heat_type", "ac_type", "num_parking", "prop_view")]
+```
+
+
+```{r}
+int_columns <- sapply(updated_property_assessment, is.integer)
+
+updated_property_assessment[, int_columns] <- lapply(updated_property_assessment[, int_columns], as.numeric)
+
+str(updated_property_assessment)
+```
+
+##Cleaning the data and removing outliers
+```{r}
+clean_num_columns <- function(x) {
+  # Remove outliers based on IQR
+  q1 <- quantile(x, 0.25, na.rm = TRUE)
+  q3 <- quantile(x, 0.75, na.rm = TRUE)
+  iqr_value <- IQR(x, na.rm = TRUE)
+  
+  lower_bound <- q1 - 1.5 * iqr_value
+  upper_bound <- q3 + 1.5 * iqr_value
+  
+  x_outliers_removed <- ifelse(x < lower_bound | x > upper_bound, NA, x)
+  
+  # Impute missing values with the median
+  x_clean_data <- ifelse(is.na(x_outliers_removed), median(x, na.rm = TRUE), x_outliers_removed)
+  
+  return(x_clean_data)
+}
+
+#Clean all numeric columns in the dataset
+updated_property_assessment <- updated_property_assessment %>%
+  mutate(across(where(is.numeric), clean_num_columns))
+
+# Remove rows with any NA values after cleaning
+updated_property_assessment <- na.omit(updated_property_assessment)
+
+updated_property_assessment <- updated_property_assessment %>%
+  mutate(city = ifelse(city == "" | is.na(city), "Unknown", city))
+```
+
+
+##Loading required packages
+```{r}
+
+#install.packages("ggcorrplot")
+
+library(ggcorrplot)
+
+```
+
+
+##Creating subset data
+```{r}
+
+subset_data<- updated_property_assessment[, c("land_value", "bldg_value", "total_value", "gross_area", "living_area")]
+
+```
+
+##Calculating the correlation matrix----
+
+```{r}
+
+cor_matrix <- cor(subset_data, use = "complete.obs")
+
+
+```
+
+
+##Creating a correlation graph
+```{r}
+#install.packages("corrplot")
+library(corrplot)
+
+corrplot(cor_matrix, method = "color", type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45, addCoef.col = "black")
+```
+
+
+
+#Explanation:
+The graph shows a correlation matrix heatmap, which visualizes the Pearson correlation coefficients between several variables. The variables included are bldg_value, total_value, land_value, gross_area, and living_area.
+
+
+Correlation Coefficients: The cells contain numbers that represent the correlation coefficients between the variables intersecting in that cell. These values range from -1 to 1:
+
+**A value of 1 indicates a perfect positive correlation**
+**A value of 0 indicates no correlation.**
+**A value of -1 indicates a perfect negative correlation.**
+
+
+**Dark blue** indicates a strong positive correlation.
+**Light blue** indicates a weaker positive correlation.
+**White** represents a neutral or no correlation.
+
+
+Correlations in this heatmap include:
+
+A strong positive correlation of 0.85 between bldg_value and total_value, implying that as the building value increases, the total value tends to increase as well.
+gross_area and living_area have a very strong positive correlation of 0.88, suggesting that larger properties in terms of gross area also have larger living areas.
+
+**Diagonal Values:** The diagonal cells from the top left to the bottom right show a correlation of 1. This is because it is the correlation of each variable with itself, which is always perfect.
+
+
+**Variable Pairings:** The variable pairings are shown on the x-axis (horizontal at the top of the matrix) and the y-axis (vertical at the right of the matrix). For example, the correlation between land_value and gross_area is 0.67, indicating a moderately strong positive correlation.
+
+
+**#Asked Question 1:**
+
+*A correlation chart is diagnostic, and should not be larger than 5 variables for reporting purposes. Explain why?*
+
+When creating a correlation chart, the general recommendation to limit the number of variables to five or fewer is for the sake of clarity and interpretability. Here are some reasons for this guideline:
+
+**Readability:** A correlation chart with too many variables can become cluttered and difficult to read. When there are more than five variables, the number of pairwise correlations increases exponentially, making the chart overly complex.
+
+**Interpretability:** With fewer variables, it's easier to interpret the relationships and identify patterns. This is important when using the chart for diagnostic purposes, such as identifying variables with multicollinearity in regression analysis.
+
+**Simplicity:** In many reporting contexts, simplicity is key. A concise visual with a handful of relevant variables is more likely to be understood by a wider audience than a dense matrix that requires more time and expertise to decipher.
+
+**Focus on Relevance:** Limiting the number of variables encourages the analyst to focus on the most relevant variables to the research question or business problem, avoiding unnecessary complexity from less important variables.
+
+**Statistical Significance:** Fewer comparisons reduce the risk of spurious correlations and the problem of multiple comparisons, where the chance of finding at least one statistically significant correlation due to chance alone increases with the number of tests performed.
+
+For these reasons, when reporting in a business or research context, it is best practice to curate the variables included in a correlation chart to those that are most pertinent to the analysis. This ensures that the chart remains a useful diagnostic tool and that the report is accessible to its intended audience.
+
+
+
+**#Part 2:**
+
+```{r}
+
+#Creating separate vector for variable of interest----
+
+variable2<- updated_property_assessment[, c("total_value", "living_area", "bed_rms", "kitchens", "full_bth", "num_parking")]
+
+#Removing NA values
+variable2<- na.omit(variable2)
+
+
+#Removing any scientific notation
+options(scipen = 100, digits = 10)
+  
+```
+
+
+
+##Calculating regression model
+```{r}
+
+regression_model <- lm(total_value ~ living_area + bed_rms + kitchens + full_bth +num_parking, data = variable2)
+
+summary(regression_model)
+
+```
+
+
+The above table is the output of a summary of a linear regression model in R. The model predicts total_value based on the independent variables living_area, bed_rms, kitchens, full_bth, and num_parking. 
+
+**Call:**
+
+This section shows the regression formula used, with total_value as the dependent variable and living_area, bed_rms, kitchens, full_bth, and num_parking as independent variables.
+
+**Residuals:**
+
+The residuals are the differences between the observed values and the values predicted by the model.
+The summary provides the minimum, first quartile (1Q), median, third quartile (3Q), and maximum residuals.
+Large residuals indicate predictions that are far from the actual values.
+
+**Coefficients:**
+
+The coefficients table shows the estimated effect (regression coefficients) of each independent variable on the dependent variable (total_value).
+
+Estimate: The estimated change in total_value associated with a one-unit change in the predictor while holding other predictors constant.
+
+Std. Error: The standard error of the estimate, indicating the average amount that the coefficient estimates vary from the actual average value of our response variable.
+
+t value: The t-statistic, which is the coefficient divided by its standard error.
+
+Pr(>|t|): The p-value for the hypothesis test that the coefficient is different from zero. 
+A low p-value (typically ≤ 0.05) indicates that you can reject the null hypothesis that the coefficient is zero.
+
+
+**Specific Coefficients:**
+
+The expected mean value of total_value when all predictors are held at zero. Its high t value and low p-value indicate it's significantly different from zero.
+
+*living_area:* For each additional square unit of living area, the total value is expected to increase by approximately 129.65 units, highly significant.
+
+*bed_rms:* Each additional bedroom is associated with a decrease in total value by approximately 47,201.066 units, also significant.
+
+*kitchens:* The coefficient for kitchens is not defined, which indicates a problem, possibly multicollinearity. This happens when independent variables are too highly correlated with each other.
+
+*full_bth:* Each additional full bathroom is associated with an increase in total value by approximately 160,380.020 units, highly significant.
+
+*num_parking:* The number of parking spots is not significantly associated with the total value (p-value 0.219).
+
+
+In conclusion, the model suggests that living_area and full_bth are positively associated with total_value, while bed_rms is negatively associated. num_parking is not significantly associated with total_value, and there's an issue with the kitchens variable that needs to be addressed. The model explains about 27.8% of the variability of the dependent variable.
+
+
+```{r}
+# Export the regression table to a CSV file
+write.csv(coef(summary(regression_model)), file = "regression_table.csv")
+
+# Reset scipen and digits options to their default values
+options(scipen = 0, digits = 7)
+```
+
+
+
+**Asked Question 2:**
+ 
+ *How does regression analysis differ from correlation analysis?*
+
+Regression analysis and correlation analysis are both statistical methods used to examine the relationship between variables, but they differ in purpose, depth of analysis, and the type of information they provide.
+
+**Correlation Analysis:**
+
+Correlation quantifies the degree to which two variables are related.
+Correlation coefficients only measure the strength and direction (positive or negative) of the linear relationship between variables.
+It does not imply causation, nor does it account for the influence of other variables.
+The correlation coefficient is symmetric, meaning the correlation from X to Y is the same as from Y to X.
+
+**Regression Analysis:**
+
+Regression determines the nature of the relationship between a dependent variable and one or more independent variables.
+It is used to predict the value of the dependent variable based on the values of the independent variable(s).
+Regression coefficients provide the expected change in the dependent variable for a one-unit change in the independent variable(s), holding all other variables constant.
+It can also indicate the direction of the relationship (positive or negative) but, like correlation, does not confirm causation without further validation.
+Regression is not symmetric. The regression of Y on X is not the same as X on Y, as the former predicts Y while the latter predicts X.
+
+**Key Differences in Results:**
+
+Correlation results in a single coefficient that tells you the strength and direction of the relationship between two variables.
+Regression results in a model that can have multiple coefficients, each telling you how much influence one predictor has on the dependent variable. It also provides a variety of diagnostic metrics (like R-squared, F-statistics, p-values) to evaluate the overall fit and predictive power of the model.
+In summary, correlation is a starting point for analysis, indicating whether there is a linear relationship worth investigating further. In contrast, regression provides a more comprehensive analysis that can be used for prediction and inferring the relationship between variables.
+
+
+
